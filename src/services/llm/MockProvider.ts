@@ -38,11 +38,11 @@ export class MockProvider implements ILLMProvider {
   private getMockResponse(request: LLMRequest): string {
     const prompt = request.userPrompt.toLowerCase();
     
-    if (prompt.includes('competency questions') || prompt.includes('generate exactly')) {
-      return JSON.stringify(this.mockCQGeneration());
-    }
-    if (prompt.includes('competency questions to expand') || prompt.includes('expand')) {
+    if (prompt.includes('competency questions to expand')) {
       return JSON.stringify(this.mockCQExpansion());
+    }
+    if (prompt.includes('generate exactly') || prompt.includes('competency questions')) {
+      return JSON.stringify(this.mockCQGeneration());
     }
     if (prompt.includes('extract the top-level ontology')) {
       return JSON.stringify(this.mockOntologyExtraction());

@@ -152,7 +152,10 @@ export const useMiningStore = create<MiningState>((set, get) => ({
     set({
       currentProject: project,
       currentPhase: project.currentPhase,
-      domainDescription: project.description,
+      domainDescription: project.domainDescription || project.description,
+      competencyQuestions: project.competencyQuestions || [],
+      selectedCQIds: project.selectedCQIds || [],
+      expandedCQs: project.expandedCQs || [],
       concepts,
       relations,
       workflows,
@@ -767,6 +770,10 @@ export const useMiningStore = create<MiningState>((set, get) => ({
           ...state.currentProject!,
           currentPhase: state.currentPhase,
           description: state.domainDescription || state.currentProject!.description,
+          domainDescription: state.domainDescription,
+          competencyQuestions: state.competencyQuestions,
+          selectedCQIds: state.selectedCQIds,
+          expandedCQs: state.expandedCQs,
           updatedAt: Date.now(),
         });
 
