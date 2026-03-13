@@ -110,9 +110,34 @@ export function MiningWorkspacePage() {
     if (!currentProject) return;
     setAutoRunning(true);
     const autoSteps = [
-      { name: 'CQ 生成', fn: async () => { await useMiningStore.getState().generateCQs(); } },
-      { name: 'CQ 展开', fn: async () => { await useMiningStore.getState().expandCQs(); } },
+      { name: 'CQ 生成', fn: async () => {
+        await useMiningStore.getState().generateCQs();
+        // 自动模式：自动选择所有 high/medium 重要性的 CQ
+        const store = useMiningStore.getState();
+        const autoSelectedIds = store.competencyQuestions
+          .filter(cq => cq.importance === 'high' || cq.importance === 'medium')
+          .map(cq => cq.id);
+        // 如果没有 high/medium，选择全部
+        const idsToSelect = autoSelectedIds.length > 0 ? autoSelectedIds : store.competencyQuestions.map(cq => cq.id);
+        store.selectCQs(idsToSelect);
+      }},
+      { name: 'CQ 展开', fn: async () => {
+        await useMiningStore.getState().expandCQs();
+        // 自动模式：自动确认所有展开内容
+        const store = useMiningStore.getState();
+        store.expandedCQs.forEach(eq => {
+          store.confirmExpansion(eq.cqId, true);
+        });
+      }},
       { name: '本体提取', fn: async () => { await useMiningStore.getState().extractOntology(); } },
+      { name: '深入推演', fn: async () => {
+        // 自动对顶层概念做一轮 drill down
+        const store = useMiningStore.getState();
+        const topConcepts = store.concepts.filter(c => !c.parentId && !c.isExpanded);
+        for (const concept of topConcepts.slice(0, 5)) { // 限制前5个避免太慢
+          try { await store.drillDown(concept.id); } catch { /* continue */ }
+        }
+      }},
       { name: '工作流提取', fn: async () => { await useMiningStore.getState().extractWorkflows(); } },
       { name: '关系推演', fn: async () => { await useMiningStore.getState().inferRelations(); } },
     ];
@@ -168,7 +193,7 @@ export function MiningWorkspacePage() {
               { label: <span><ThunderboltOutlined /> 自动</span>, value: 'auto' },
             ]}
           />
-          {mode === 'auto' && !autoRunning && currentPhase === MiningPhase.DOMAIN_INPUT && (
+          {mode === 'auto' && !autoRunning && autoProgress < 1 && (
             <Button type="primary" size="small" icon={<ThunderboltOutlined />} onClick={handleAutoMode}>
               开始自动挖掘
             </Button>

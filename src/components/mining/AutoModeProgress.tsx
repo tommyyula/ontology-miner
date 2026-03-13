@@ -20,12 +20,12 @@ interface AutoModeProgressProps {
 }
 
 const autoSteps = [
+  { title: 'CQ 生成', phase: 'cq_generation' },
   { title: 'CQ 展开', phase: 'cq_expansion' },
   { title: '本体提取', phase: 'ontology_extraction' },
   { title: '深入推演', phase: 'drill_down' },
   { title: '工作流提取', phase: 'workflow_extraction' },
   { title: '关系推演', phase: 'relation_inference' },
-  { title: '生成验证', phase: 'validation_generation' },
 ];
 
 export function AutoModeProgress(props: AutoModeProgressProps) {
