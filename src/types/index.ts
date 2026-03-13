@@ -4,3 +4,7 @@ export * from './mining';
 export * from './cq';
 export * from './workflow';
 export * from './llm';
+export * from './datasource';
+export * from './debate';
+export * from './annotation';
+export * from './visualization';

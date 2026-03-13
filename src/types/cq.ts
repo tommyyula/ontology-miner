@@ -4,6 +4,8 @@ export enum CQCategory {
   RELATIONSHIP = 'relationship',
   PROCESS = 'process',
   CONSTRAINT = 'constraint',
+  TEMPORAL = 'temporal',
+  QUALITY = 'quality',
 }
 
 export interface CompetencyQuestion {
@@ -13,6 +15,10 @@ export interface CompetencyQuestion {
   importance: 'high' | 'medium' | 'low';
   selected: boolean;
   relatedConcepts: string[];
+  // v2 fields
+  relevanceScore?: number;
+  dependsOnCQs?: number[];
+  expectedAnswerComplexity?: 'simple' | 'moderate' | 'complex';
 }
 
 export interface ExpandedCQ {

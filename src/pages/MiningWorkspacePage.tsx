@@ -1,8 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Spin, Typography, Tag } from 'antd';
-import { CheckCircleOutlined, LoadingOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { Spin, Typography, Tag, Button, Space, Tooltip, Segmented, message } from 'antd';
+import {
+  CheckCircleOutlined, LoadingOutlined, ExclamationCircleOutlined,
+  ThunderboltOutlined, EditOutlined, ExperimentOutlined,
+} from '@ant-design/icons';
 import { useMiningStore } from '../stores/useMiningStore';
+import { useDataSourceStore } from '../stores/useDataSourceStore';
+import { useDebateStore } from '../stores/useDebateStore';
+import { useAnnotationStore } from '../stores/useAnnotationStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { MiningPhase, PHASE_LABELS } from '../types/mining';
 import { PhaseProgress } from '../components/mining/PhaseProgress';
 import { DomainInput } from '../components/mining/DomainInput';
@@ -13,6 +20,12 @@ import { WorkflowExtraction } from '../components/mining/WorkflowExtraction';
 import { RelationMapping } from '../components/mining/RelationMapping';
 import { ReviewPanel } from '../components/mining/ReviewPanel';
 import { ExportPanel } from '../components/mining/ExportPanel';
+import { DataSourcePanel } from '../components/mining/DataSourcePanel';
+import { AutoModeProgress } from '../components/mining/AutoModeProgress';
+import { DebatePanel } from '../components/debate/DebatePanel';
+import { MultiGraphView } from '../components/graph/MultiGraphView';
+import { AnnotationWorkspace } from '../components/annotation/AnnotationWorkspace';
+import { VotingStats } from '../components/annotation/VotingStats';
 
 const { Text } = Typography;
 
@@ -70,18 +83,64 @@ function PhaseContent({ phase }: { phase: MiningPhase }) {
 export function MiningWorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { currentProject, currentPhase, loadProject, goToPhase, saveStatus, reset } = useMiningStore();
+  const { currentProject, currentPhase, loadProject, goToPhase, saveStatus, reset: resetMining, concepts, relations, workflows } = useMiningStore();
+  const { dataSources, loadSources } = useDataSourceStore();
+  const { debateHistory, loadHistory } = useDebateStore();
+  const { questions, generateQuestions, loadAnnotations, calculateConsensus } = useAnnotationStore();
+  const settings = useSettingsStore();
+  const [mode, setMode] = useState<'auto' | 'manual'>('manual');
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoProgress, setAutoProgress] = useState(0);
+  const [autoMessage, setAutoMessage] = useState('');
+  const [autoStepIndex, setAutoStepIndex] = useState(0);
+  const [showDebate, setShowDebate] = useState(true);
+  const [activeTab, setActiveTab] = useState<'mining' | 'annotate' | 'stats'>('mining');
 
   useEffect(() => {
     if (projectId) {
-      loadProject(projectId).catch(() => {
-        navigate('/');
-      });
+      loadProject(projectId).catch(() => navigate('/'));
+      loadSources(projectId);
+      loadHistory(projectId);
+      loadAnnotations(projectId);
     }
-    return () => {
-      reset();
-    };
+    return () => { resetMining(); };
   }, [projectId]);
+
+  const handleAutoMode = async () => {
+    if (!currentProject) return;
+    setAutoRunning(true);
+    const autoSteps = [
+      { name: 'CQ 生成', fn: async () => { await useMiningStore.getState().generateCQs(); } },
+      { name: 'CQ 展开', fn: async () => { await useMiningStore.getState().expandCQs(); } },
+      { name: '本体提取', fn: async () => { await useMiningStore.getState().extractOntology(); } },
+      { name: '工作流提取', fn: async () => { await useMiningStore.getState().extractWorkflows(); } },
+      { name: '关系推演', fn: async () => { await useMiningStore.getState().inferRelations(); } },
+    ];
+
+    for (let i = 0; i < autoSteps.length; i++) {
+      setAutoStepIndex(i);
+      setAutoMessage(`正在执行：${autoSteps[i].name}...`);
+      setAutoProgress((i / autoSteps.length));
+      try {
+        await autoSteps[i].fn();
+        setAutoMessage(`✅ ${autoSteps[i].name} 完成`);
+      } catch (e) {
+        setAutoMessage(`❌ ${autoSteps[i].name} 失败: ${(e as Error).message}`);
+        break;
+      }
+    }
+    setAutoProgress(1);
+    setAutoRunning(false);
+    setAutoMessage('自动挖掘完成！');
+    message.success('自动模式完成');
+  };
+
+  const handleGenerateAnnotation = async () => {
+    if (!currentProject) return;
+    await generateQuestions(currentProject.id, concepts, relations, workflows, settings.maxQuestions);
+    calculateConsensus(settings.consensusThreshold);
+    message.success(`已生成 ${useAnnotationStore.getState().questions.length} 个验证问题`);
+  };
 
   if (!currentProject) {
     return (
@@ -92,27 +151,136 @@ export function MiningWorkspacePage() {
   }
 
   return (
-    <div style={{ padding: '16px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '12px 20px', maxWidth: 1600, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Text strong style={{ fontSize: 18 }}>{currentProject.name}</Text>
-          <Text type="secondary" style={{ marginLeft: 12, fontSize: 13 }}>
-            {PHASE_LABELS[currentPhase]}
-          </Text>
+          <Text type="secondary" style={{ fontSize: 13 }}>{PHASE_LABELS[currentPhase]}</Text>
         </div>
-        <SaveIndicator status={saveStatus} />
+        <Space>
+          <Segmented
+            size="small"
+            value={mode}
+            onChange={(v) => setMode(v as 'auto' | 'manual')}
+            options={[
+              { label: <span><EditOutlined /> 手动</span>, value: 'manual' },
+              { label: <span><ThunderboltOutlined /> 自动</span>, value: 'auto' },
+            ]}
+          />
+          {mode === 'auto' && !autoRunning && currentPhase === MiningPhase.DOMAIN_INPUT && (
+            <Button type="primary" size="small" icon={<ThunderboltOutlined />} onClick={handleAutoMode}>
+              开始自动挖掘
+            </Button>
+          )}
+          <Tooltip title="生成标注验证问题">
+            <Button size="small" onClick={handleGenerateAnnotation} disabled={concepts.length === 0}>
+              生成验证
+            </Button>
+          </Tooltip>
+          <Tooltip title={showDebate ? '隐藏辩论面板' : '显示辩论面板'}>
+            <Button size="small" icon={<ExperimentOutlined />} type={showDebate ? 'primary' : 'default'} ghost={showDebate} onClick={() => setShowDebate(!showDebate)} />
+          </Tooltip>
+          <SaveIndicator status={saveStatus} />
+        </Space>
       </div>
 
+      {/* Auto mode progress */}
+      {(autoRunning || autoProgress > 0) && (
+        <AutoModeProgress
+          isRunning={autoRunning}
+          isPaused={false}
+          currentStep=""
+          currentPhase={currentPhase}
+          stepIndex={autoStepIndex}
+          totalSteps={5}
+          overallProgress={autoProgress}
+          message={autoMessage}
+          conceptsExtracted={concepts.length}
+          relationsFound={relations.length}
+          onPause={() => {}}
+          onResume={() => {}}
+          onCancel={() => setAutoRunning(false)}
+        />
+      )}
+
       {/* Phase progress */}
-      <div style={{ marginBottom: 24, background: '#fff', padding: '16px 20px', borderRadius: 8 }}>
+      <div style={{ marginBottom: 12, background: '#fff', padding: '12px 16px', borderRadius: 8 }}>
         <PhaseProgress currentPhase={currentPhase} onClickPhase={goToPhase} />
       </div>
 
-      {/* Main content */}
-      <div style={{ background: '#fff', padding: 24, borderRadius: 8, minHeight: 400 }}>
-        <PhaseContent phase={currentPhase} />
+      {/* Tab: Mining / Annotate / Stats */}
+      <div style={{ marginBottom: 12 }}>
+        <Segmented
+          value={activeTab}
+          onChange={(v) => setActiveTab(v as typeof activeTab)}
+          options={[
+            { label: `⛏ 挖掘`, value: 'mining' },
+            { label: `📝 标注验证 (${questions.length})`, value: 'annotate' },
+            { label: `📊 投票统计`, value: 'stats' },
+          ]}
+        />
       </div>
+
+      {activeTab === 'mining' && (
+        <div style={{ display: 'flex', gap: 12 }}>
+          {/* Left sidebar: Data sources */}
+          <div style={{ width: 280, flexShrink: 0 }}>
+            <DataSourcePanel projectId={currentProject.id} />
+            <div style={{ marginTop: 12 }}>
+              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 8, fontSize: 12 }}>
+                <Text strong style={{ fontSize: 13 }}>📊 统计</Text>
+                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  <Tag>{concepts.length} 概念</Tag>
+                  <Tag>{relations.length} 关系</Tag>
+                  <Tag>{workflows.length} 工作流</Tag>
+                  <Tag>{dataSources.length} 数据源</Tag>
+                  <Tag>{debateHistory.length} 辩论</Tag>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ background: '#fff', padding: 20, borderRadius: 8, minHeight: 300 }}>
+              <PhaseContent phase={currentPhase} />
+            </div>
+          </div>
+
+          {/* Right sidebar: Debate panel */}
+          {showDebate && (
+            <div style={{ width: 340, flexShrink: 0 }}>
+              <DebatePanel />
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'annotate' && (
+        <div style={{ background: '#fff', borderRadius: 8, padding: 24 }}>
+          <AnnotationWorkspace />
+        </div>
+      )}
+
+      {activeTab === 'stats' && (
+        <div style={{ background: '#fff', borderRadius: 8, padding: 24 }}>
+          <VotingStats />
+        </div>
+      )}
+
+      {/* Graph view (always visible in mining tab) */}
+      {activeTab === 'mining' && concepts.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <MultiGraphView
+            concepts={concepts}
+            relations={relations}
+            workflows={workflows}
+            dataSources={dataSources}
+            debateRecords={debateHistory}
+          />
+        </div>
+      )}
     </div>
   );
 }

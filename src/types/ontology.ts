@@ -7,7 +7,8 @@ export enum OntologyLayer {
 
 export type PropertyDataType =
   | 'string' | 'number' | 'boolean' | 'date' | 'datetime'
-  | 'enum' | 'reference' | 'list' | 'object';
+  | 'enum' | 'reference' | 'list' | 'object'
+  | 'money' | 'percentage' | 'duration' | 'geo';
 
 export interface ConceptProperty {
   id: string;
@@ -30,10 +31,24 @@ export enum RelationType {
   PRODUCES = 'produces',
   CONSUMES = 'consumes',
   ASSOCIATED_WITH = 'associated_with',
+  INHERITS_FROM = 'inherits_from',
+  COMPOSED_OF = 'composed_of',
+  AGGREGATES = 'aggregates',
+  SPECIALIZES = 'specializes',
+  GENERALIZES = 'generalizes',
+  PRECEDES = 'precedes',
+  FOLLOWS = 'follows',
+  CONSTRAINS = 'constrains',
+  ENABLES = 'enables',
   CUSTOM = 'custom',
 }
 
 export type ConceptStatus = 'generated' | 'confirmed' | 'modified' | 'deprecated';
+
+export type InferenceType = 'direct' | 'indirect' | 'inherited' | 'composed';
+export type AnnotationStatus = 'pending' | 'validated' | 'disputed' | 'rejected';
+export type ConceptSource = 'extracted' | 'debated' | 'manual' | 'annotated';
+export type RelationSource = 'extracted' | 'debated' | 'manual' | 'inferred' | 'annotated';
 
 export interface OntologyConcept {
   id: string;
@@ -50,6 +65,13 @@ export interface OntologyConcept {
   status: ConceptStatus;
   isExpanded: boolean;
   position?: { x: number; y: number };
+  // v2 fields
+  confidence?: number;
+  source?: ConceptSource;
+  importanceScore?: number;
+  dataSourceRefs?: string[];
+  debateRecordId?: string;
+  annotationStatus?: AnnotationStatus;
 }
 
 export interface OntologyRelation {
@@ -66,6 +88,14 @@ export interface OntologyRelation {
   sourceStepIds: string[];
   status: ConceptStatus;
   reasoning?: string;
+  // v2 fields
+  confidence?: number;
+  inferenceType?: InferenceType;
+  inferenceChain?: string[];
+  source?: RelationSource;
+  evidence?: string;
+  debateRecordId?: string;
+  annotationStatus?: AnnotationStatus;
 }
 
 export interface OntologyGraph {

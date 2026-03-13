@@ -5,6 +5,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ProjectListPage } from './pages/ProjectListPage';
 import { MiningWorkspacePage } from './pages/MiningWorkspacePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AnnotationPage } from './pages/AnnotationPage';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
             <Route index element={<ProjectListPage />} />
             <Route path="project/:projectId" element={<MiningWorkspacePage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="annotate/:sessionId" element={<AnnotationPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
