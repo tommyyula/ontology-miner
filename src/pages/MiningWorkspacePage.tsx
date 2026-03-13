@@ -102,6 +102,13 @@ export function MiningWorkspacePage() {
       loadSources(projectId);
       loadHistory(projectId);
       loadAnnotations(projectId);
+      // 加载专家画像并自动设置当前专家
+      useAnnotationStore.getState().loadExperts().then(() => {
+        const { experts, currentExpert, setCurrentExpert } = useAnnotationStore.getState();
+        if (!currentExpert && experts.length > 0) {
+          setCurrentExpert(experts[0]);
+        }
+      });
     }
     return () => { resetMining(); };
   }, [projectId]);
